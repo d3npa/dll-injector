@@ -15,40 +15,50 @@ use winapi::um::winnt::{
     PAGE_READWRITE,
 };
 
-pub fn find_pid(_target: &str) -> Option<u32> {
-    // TODO: PROCESSENTRY32を取得しth32ProcessIDを返す
-    None
+// TODO: 実装
+// pub fn find_pid(_target: &str) -> Option<u32> {
+//     // PROCESSENTRY32を取得しth32ProcessIDを返す
+//     None
+// }
+
+fn get_fn_addr<'a>(mod_name: &str, fn_name: &str) -> Result<u64, &'a str> {
+    let mod_str = CString::new(mod_name).unwrap();
+    let fn_str = CString::new(fn_name).unwrap();
+
+    let mod_handle = unsafe {
+        GetModuleHandleA(mod_str.as_ptr())
+    };
+
+    if mod_handle == null_mut() {
+        eprintln!("{:?} のハンドラの取得ができませんでした", mod_str);
+        return Err("GetModuleHandleA");
+    }
+
+    let fn_addr = unsafe {
+        GetProcAddress(mod_handle, fn_str.as_ptr())
+    };
+
+    if fn_addr == null_mut() {
+        eprintln!("{:?} のアドレスを取得できませんでした", fn_addr);
+        return Err("GetProcAddress");
+    }
+
+    println!("LoadLibraryA のアドレスを解決しました: {:?}", fn_addr);
+
+    Ok(fn_addr as u64)
 }
 
 pub fn inject_dll(target_pid: u32, dll_path: &str) -> Result<(), &str> {
     // RustはLoadLibraryAのアドレスを知らないからKernel32から取得する
-    let kern32_str = CString::new("Kernel32.dll").unwrap();
-    let fn_lla_str = CString::new("LoadLibraryA").unwrap();
-
-    let kern32_mod = unsafe {
-        GetModuleHandleA(kern32_str.as_ptr())
+    let fn_lla_addr = match get_fn_addr("Kernel32.dll", "LoadLibraryA") {
+        Ok(addr) => addr,
+        Err(e) => return Err(e),
     };
-
-    if kern32_mod == null_mut() {
-        eprintln!("{:?} のハンドラの取得ができませんでした", kern32_str);
-        return Err("GetModuleHandleA");
-    }
-
-    let fn_lla_addr = unsafe {
-        GetProcAddress(kern32_mod, fn_lla_str.as_ptr())
-    };
-
-    if fn_lla_addr == null_mut() {
-        eprintln!("{:?} のアドレスを取得できませんでした", fn_lla_str);
-        return Err("GetProcAddress");
-    }
-
-    println!("LoadLibraryA のアドレスを解決しました: {:?}", fn_lla_addr);
 
     let dll_path_str = CString::new(dll_path).unwrap();
     let dll_path_size = dll_path_str.as_bytes_with_nul().len();
 
-    // 対象プロセスにDLLのパスをメモリにパスを書き込む
+    // DLLパスを対象プロセスのメモリに書き込む
     let proc = unsafe {
         OpenProcess(
             PROCESS_CREATE_THREAD | PROCESS_VM_OPERATION | PROCESS_VM_WRITE, 
