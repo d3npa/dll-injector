@@ -1,7 +1,5 @@
-// use detour::static_detour;
-use winapi::shared::windef::{HWND};
 use winapi::shared::minwindef::{HMODULE, DWORD, LPVOID};
-use winapi::um::winnt::{LPCWSTR, DLL_PROCESS_ATTACH};
+use winapi::um::winnt::DLL_PROCESS_ATTACH;
 
 fn onload() {
     println!("Hello world");
